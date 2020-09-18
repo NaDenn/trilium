@@ -91,13 +91,13 @@ async function deleteNotes(branchIdsToDelete) {
         .append($nodeTitles)
         .append($deleteClonesCheckbox);
 
-    const confirmDialog = await import('../dialogs/confirm.js');
+//    const confirmDialog = await import('../dialogs/confirm.js');
 
-    if (!await confirmDialog.confirm($confirmText)) {
-        return false;
-    }
+//    if (!await confirmDialog.confirm($confirmText)) {
+//        return false;
+//    }
 
-    const deleteClones = $deleteClonesCheckbox.find("input").is(":checked");
+    const deleteClones = false;
 
     const taskId = utils.randomString(10);
 
