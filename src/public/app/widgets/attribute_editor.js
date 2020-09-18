@@ -26,6 +26,7 @@ const TPL = `
         color: var(--muted-text-color);
         max-height: 100px;
         overflow: auto;
+        transition: opacity .1s linear;
     }
         
     .save-attributes-button {
@@ -55,6 +56,7 @@ const TPL = `
     
     .attribute-errors {
         color: red;
+        padding: 5px 50px 0px 5px; /* large right padding to avoid buttons */
     }
     </style>
     
@@ -196,11 +198,7 @@ export default class AttributeEditorWidget extends TabAwareWidget {
         this.initialized = this.initEditor();
 
         this.$editor.on('keydown', async e => {
-            const keycode = (e.keyCode ? e.keyCode : e.which);
-
-            if (keycode === 13) {
-                this.triggerCommand('focusOnDetail', {tabId: this.tabContext.tabId});
-
+            if (e.which === 13) {
                 await this.save();
             }
 
@@ -224,14 +222,28 @@ export default class AttributeEditorWidget extends TabAwareWidget {
             y: e.pageY,
             orientation: 'left',
             items: [
-                {title: "Add new label", command: "addNewLabel", uiIcon: "hash"},
-                {title: "Add new relation", command: "addNewRelation", uiIcon: "transfer"},
+                {title: `Add new label <kbd data-command="addNewLabel"></kbd>`, command: "addNewLabel", uiIcon: "hash"},
+                {title: `Add new relation <kbd data-command="addNewRelation"></kbd>`, command: "addNewRelation", uiIcon: "transfer"},
                 {title: "----"},
                 {title: "Add new label definition", command: "addNewLabelDefinition", uiIcon: "empty"},
                 {title: "Add new relation definition", command: "addNewRelationDefinition", uiIcon: "empty"},
             ],
             selectMenuItemHandler: ({command}) => this.handleAddNewAttributeCommand(command)
         });
+    }
+
+    // triggered from keyboard shortcut
+    addNewLabelEvent({tabId}) {
+        if (this.isTab(tabId)) {
+            this.handleAddNewAttributeCommand('addNewLabel');
+        }
+    }
+
+    // triggered from keyboard shortcut
+    addNewRelationEvent({tabId}) {
+        if (this.isTab(tabId)) {
+            this.handleAddNewAttributeCommand('addNewRelation');
+        }
     }
 
     async handleAddNewAttributeCommand(command) {
@@ -283,7 +295,8 @@ export default class AttributeEditorWidget extends TabAwareWidget {
                 attribute: attrs[attrs.length - 1],
                 isOwned: true,
                 x: (rect.left + rect.right) / 2,
-                y: rect.bottom
+                y: rect.bottom,
+                focus: 'name'
             });
         }, 100);
     }
@@ -295,6 +308,12 @@ export default class AttributeEditorWidget extends TabAwareWidget {
             await server.put(`notes/${this.noteId}/attributes`, attributes, this.componentId);
 
             this.$saveAttributesButton.fadeOut();
+
+            // blink the attribute text to give visual hint that save has been executed
+            this.$editor.css('opacity', 0);
+
+            // revert back
+            setTimeout(() => this.$editor.css('opacity', 1), 100);
         }
     }
 
@@ -343,7 +362,9 @@ export default class AttributeEditorWidget extends TabAwareWidget {
         }
 
         if (this.$errors.is(":visible")) {
-            this.$errors.slideUp();
+            // using .hide() instead of .slideUp() since this will also hide the error after confirming
+            // mention for relation name which suits up. When using.slideUp() error will appear and the slideUp which is weird
+            this.$errors.hide();
         }
     }
 
@@ -402,8 +423,10 @@ export default class AttributeEditorWidget extends TabAwareWidget {
             html: true,
             title: HELP_TEXT,
             placement: 'bottom',
-            offset: "0,20"
+            offset: "0,30"
         });
+
+        this.$editor.tooltip('show');
     }
 
     getClickIndex(pos) {
@@ -447,15 +470,15 @@ export default class AttributeEditorWidget extends TabAwareWidget {
     }
 
     async renderOwnedAttributes(ownedAttributes, saved) {
-        const $attributesContainer = $("<div>");
+        ownedAttributes = ownedAttributes.filter(oa => !oa.isDeleted);
 
-        for (const attribute of ownedAttributes) {
-            if (!attribute.isDeleted) {
-                attributeRenderer.renderAttribute(attribute, $attributesContainer, true);
-            }
+        let htmlAttrs = (await attributeRenderer.renderAttributes(ownedAttributes, true)).html();
+
+        if (htmlAttrs.length > 0) {
+            htmlAttrs += "&nbsp;";
         }
 
-        this.textEditor.setData($attributesContainer.html());
+        this.textEditor.setData(htmlAttrs);
 
         if (saved) {
             this.lastSavedContent = this.textEditor.getData();
@@ -468,6 +491,10 @@ export default class AttributeEditorWidget extends TabAwareWidget {
         if (this.tabContext.tabId === tabId) {
             if (this.$editor.is(":visible")) {
                 this.$editor.trigger('focus');
+
+                this.textEditor.model.change(writer => { // put focus to the end of the content
+                    writer.setSelection(writer.createPositionAt(this.textEditor.model.document.getRoot(), 'end'));
+                });
             }
             else {
                 this.triggerCommand('focusOnDetail', {tabId: this.tabContext.tabId});

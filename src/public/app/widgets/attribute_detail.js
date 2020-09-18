@@ -7,6 +7,7 @@ import noteAutocompleteService from "../services/note_autocomplete.js";
 import promotedAttributeDefinitionParser from '../services/promoted_attribute_definition_parser.js';
 import TabAwareWidget from "./tab_aware_widget.js";
 import SpacedUpdate from "../services/spaced_update.js";
+import utils from "../services/utils.js";
 
 const TPL = `
 <div class="attr-detail">
@@ -68,7 +69,7 @@ const TPL = `
     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
         <h5 class="attr-detail-title"></h5>
         
-        <span class="bx bx-x close-attr-detail-button"></span>
+        <span class="bx bx-x close-attr-detail-button" title="Cancel changes and close"></span>
     </div>
 
     <div class="attr-is-owned-by"></div>
@@ -145,7 +146,7 @@ const TPL = `
     <div class="attr-save-delete-button-container">
         <button class="btn btn-primary btn-sm attr-save-changes-and-close-button" 
             style="flex-grow: 1; margin-right: 20px">
-            Save & close</button>
+            Save & close <kbd>Ctrl+Enter</kbd></button>
             
         <button class="btn btn-secondary btn-sm attr-delete-button">
             Delete</button>
@@ -189,7 +190,7 @@ const ATTR_HELP = {
         "disableInclusion": "scripts with this label won't be included into parent script execution.",
         "sorted": "keeps child notes sorted by title alphabetically",
         "hidePromotedAttributes": "Hide promoted attributes on this note",
-        "readOnly": "editor is in read only mode. Works only for text notes.",
+        "readOnly": "editor is in read only mode. Works only for text and code notes.",
         "autoReadOnlyDisabled": "text/code notes can be set automatically into read mode when they are too large. You can disable this behavior on per-note basis by adding this label to the note",
         "appCss": "marks CSS notes which are loaded into the Trilium application and can thus be used to modify Trilium's looks.",
         "appTheme": "marks CSS notes which are full Trilium themes and are thus available in Trilium options.",
@@ -214,13 +215,19 @@ const ATTR_HELP = {
 
 export default class AttributeDetailWidget extends TabAwareWidget {
     async refresh() {
-        // this widget is not activated in a standard way
+        // switching note/tab should close the widget
+
+        this.hide();
     }
 
     doRender() {
         this.relatedNotesSpacedUpdate = new SpacedUpdate(async () => this.updateRelatedNotes(), 1000);
 
         this.$widget = $(TPL);
+
+        utils.bindElShortcut(this.$widget, 'ctrl+return', () => this.saveAndClose());
+        utils.bindElShortcut(this.$widget, 'esc', () => this.cancelAndClose());
+
         this.contentSized();
 
         this.$title = this.$widget.find('.attr-detail-title');
@@ -286,16 +293,14 @@ export default class AttributeDetailWidget extends TabAwareWidget {
         this.$inputInheritable.on('change', () => this.userEditedAttribute());
 
         this.$closeAttrDetailButton = this.$widget.find('.close-attr-detail-button');
+        this.$closeAttrDetailButton.on('click', () => this.cancelAndClose());
+
         this.$attrIsOwnedBy = this.$widget.find('.attr-is-owned-by');
 
         this.$attrSaveDeleteButtonContainer = this.$widget.find('.attr-save-delete-button-container');
 
         this.$saveAndCloseButton = this.$widget.find('.attr-save-changes-and-close-button');
-        this.$saveAndCloseButton.on('click', async () => {
-            await this.triggerCommand('saveAttributes');
-
-            this.hide();
-        });
+        this.$saveAndCloseButton.on('click', () => this.saveAndClose());
 
         this.$deleteButton = this.$widget.find('.attr-delete-button');
         this.$deleteButton.on('click', async () => {
@@ -315,8 +320,6 @@ export default class AttributeDetailWidget extends TabAwareWidget {
         this.$relatedNotesList = this.$relatedNotesContainer.find('.related-notes-list');
         this.$relatedNotesMoreNotes = this.$relatedNotesContainer.find('.related-notes-more-notes');
 
-        this.$closeAttrDetailButton.on('click', () => this.hide());
-
         $(window).on('mouseup', e => {
             if (!$(e.target).closest(this.$widget[0]).length
                 && !$(e.target).closest(".algolia-autocomplete").length
@@ -326,36 +329,14 @@ export default class AttributeDetailWidget extends TabAwareWidget {
         });
     }
 
-    userEditedAttribute() {
-        this.updateAttributeInEditor();
-        this.updateHelp();
-        this.relatedNotesSpacedUpdate.scheduleUpdate();
-    }
-
-    updateHelp() {
-        const attrName = this.$inputName.val();
-
-        if (this.attrType in ATTR_HELP && attrName in ATTR_HELP[this.attrType]) {
-            this.$attrHelp
-                .empty()
-                .append($("<td colspan=2>")
-                    .append($("<strong>").text(attrName))
-                    .append(" - ")
-                    .append(ATTR_HELP[this.attrType][attrName])
-                )
-                .show();
-        }
-        else {
-            this.$attrHelp.empty().hide();
-        }
-    }
-
-    async showAttributeDetail({allAttributes, attribute, isOwned, x, y}) {
+    async showAttributeDetail({allAttributes, attribute, isOwned, x, y, focus}) {
         if (!attribute) {
             this.hide();
 
             return;
         }
+
+        utils.saveFocusedElement();
 
         this.attrType = this.getAttrType(attribute);
 
@@ -427,12 +408,20 @@ export default class AttributeDetailWidget extends TabAwareWidget {
                 .attr('readonly', () => !isOwned);
         }
         else if (attribute.type === 'relation') {
-            const targetNote = await treeCache.getNote(attribute.value);
-
             this.$inputTargetNote
                 .attr('readonly', () => !isOwned)
-                .val(targetNote ? targetNote.title : "")
-                .setSelectedNotePath(attribute.value);
+                .val("")
+                .setSelectedNotePath("");
+
+            if (attribute.value) {
+                const targetNote = await treeCache.getNote(attribute.value);
+
+                if (targetNote) {
+                    this.$inputTargetNote
+                        .val(targetNote ? targetNote.title : "")
+                        .setSelectedNotePath(attribute.value);
+                }
+            }
         }
 
         this.$inputInheritable
@@ -444,36 +433,80 @@ export default class AttributeDetailWidget extends TabAwareWidget {
         this.toggleInt(true);
 
         const offset = this.parent.$widget.offset();
+        const detPosition = this.getDetailPosition(x, offset);
 
-        const left = x - offset.left - this.$widget.outerWidth() / 2;
+        this.$widget
+            .css("left", detPosition.left)
+            .css("right", detPosition.right)
+            .css("top", y - offset.top + 70)
+            .css("max-height",
+                this.$widget.outerHeight() + y > $(window).height() - 50
+                    ? $(window).height() - y - 50
+                    : 10000);
+
+        if (focus === 'name') {
+            this.$inputName
+                .trigger('focus')
+                .trigger('select');
+        }
+    }
+
+    getDetailPosition(x, offset) {
+        let left = x - offset.left - this.$widget.outerWidth() / 2;
+        let right = "";
 
         if (left < 0) {
-            this.$widget
-                .css("left", "10px")
-                .css("right", "");
+            left = 10;
+        } else {
+            const rightEdge = left + this.$widget.outerWidth();
+
+            if (rightEdge > this.parent.$widget.outerWidth() - 10) {
+                left = "";
+                right = 10;
+            }
+        }
+
+        return {left, right};
+    }
+
+    async saveAndClose() {
+        await this.triggerCommand('saveAttributes');
+
+        this.hide();
+
+        utils.focusSavedElement();
+    }
+
+    async cancelAndClose() {
+        await this.triggerCommand('reloadAttributes');
+
+        this.hide();
+
+        utils.focusSavedElement();
+    }
+
+    userEditedAttribute() {
+        this.updateAttributeInEditor();
+        this.updateHelp();
+        this.relatedNotesSpacedUpdate.scheduleUpdate();
+    }
+
+    updateHelp() {
+        const attrName = this.$inputName.val();
+
+        if (this.attrType in ATTR_HELP && attrName in ATTR_HELP[this.attrType]) {
+            this.$attrHelp
+                .empty()
+                .append($("<td colspan=2>")
+                    .append($("<strong>").text(attrName))
+                    .append(" - ")
+                    .append(ATTR_HELP[this.attrType][attrName])
+                )
+                .show();
         }
         else {
-            const right = left + this.$widget.outerWidth();
-
-            if (right > $(window).width() - 10) {
-                this.$widget
-                    .css("left", "")
-                    .css("right", "10px");
-            }
-            else {
-                this.$widget
-                    .css("left", left)
-                    .css("right", "");
-            }
+            this.$attrHelp.empty().hide();
         }
-
-        this.$widget.css("top", y - offset.top + 70);
-
-        // so that the detail window always fits
-        this.$widget.css("max-height",
-            this.$widget.outerHeight() + y > $(window).height() - 50
-                        ? $(window).height() - y - 50
-                        : 10000);
     }
 
     async updateRelatedNotes() {

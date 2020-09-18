@@ -56,7 +56,7 @@ const TPL = `
             cursor: pointer;
         }
         
-        .attr-expander:not(.error):hover hr {
+        .attr-expander:hover hr {
             border-color: var(--main-text-color);
         }
         
@@ -205,9 +205,9 @@ export default class AttributeListWidget extends TabAwareWidget {
         return 'attribute' + (number === 1 ? '' : 's');
     }
 
-    renderInheritedAttributes(attributes, $container) {
+    async renderInheritedAttributes(attributes, $container) {
         for (const attribute of attributes) {
-            const $span = $("<span>")
+            const $attr = (await attributeRenderer.renderAttribute(attribute, false))
                 .on('click', e => this.attributeDetailWidget.showAttributeDetail({
                     attribute: {
                         noteId: attribute.noteId,
@@ -220,14 +220,18 @@ export default class AttributeListWidget extends TabAwareWidget {
                     y: e.pageY
                 }));
 
-            $container.append($span);
-
-            attributeRenderer.renderAttribute(attribute, $span, false);
+            $container
+                .append($attr)
+                .append(" ");
         }
     }
 
     async saveAttributesCommand() {
         await this.attributeEditorWidget.save();
+    }
+
+    async reloadAttributesCommand() {
+        await this.attributeEditorWidget.refresh();
     }
 
     updateAttributeListCommand({attributes}) {

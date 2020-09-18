@@ -122,7 +122,9 @@ export default class SearchBoxWidget extends BasicWidget {
         this.resetSearchEvent();
     }
 
-    showSearchEvent() {
+    showSearchEvent(data = {}) {
+        const {searchText} = data;
+
         utils.saveFocusedElement();
 
         this.$searchBox.slideDown();
@@ -137,6 +139,10 @@ export default class SearchBoxWidget extends BasicWidget {
                 hide: 200
             }
         });
+
+        if (searchText) {
+            this.$searchInput.val(searchText);
+        }
 
         this.$searchInput.trigger('focus');
     }

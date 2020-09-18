@@ -410,7 +410,7 @@ class ConsistencyChecks {
                     noteRevision.isErased = true;
                     noteRevision.save();
 
-                    logFix(`Note revision ${noteRevisionId} content was set to empty string since it was null even though it is not erased`);
+                    logFix(`Note revision ${noteRevisionId} content was set to erased since it was null even though it was not erased`);
                 } else {
                     logError(`Note revision ${noteRevisionId} content is null even though it is not erased`);
                 }
@@ -500,9 +500,7 @@ class ConsistencyChecks {
                     FROM attributes
                     WHERE isDeleted = 0
                       AND type != 'label'
-                      AND type != 'label-definition'
-                      AND type != 'relation'
-                      AND type != 'relation-definition'`,
+                      AND type != 'relation'`,
             ({attributeId, type}) => {
                 if (this.autoFix) {
                     const attribute = repository.getAttribute(attributeId);

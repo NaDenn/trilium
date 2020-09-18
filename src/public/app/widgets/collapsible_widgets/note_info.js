@@ -4,7 +4,10 @@ const TPL = `
 <table class="note-info-widget-table">
     <style>
         .note-info-widget-table {
-            width: 100%;
+            max-width: 100%;            
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
         } 
    
         .note-info-widget-table td, .note-info-widget-table th {
@@ -22,16 +25,6 @@ const TPL = `
     <tr>
         <th>Note ID:</th>
         <td class="note-info-note-id"></td>
-    </tr>
-    <tr>
-        <th>Created:</th>
-        <td class="note-info-date-created"></td>
-    </tr>
-    <tr>
-        <th>Modified:</th>
-        <td class="note-info-date-modified"></td>
-    </tr>
-    <tr>
         <th>Type:</th>
         <td>
             <span class="note-info-type"></span>
@@ -39,10 +32,20 @@ const TPL = `
             <span class="note-info-mime"></span>
         </td>
     </tr>
+    <tr>
+        <th>Created:</th>
+        <td class="note-info-date-created"></td>
+        <th>Modified:</th>
+        <td class="note-info-date-modified"></td>
+    </tr>
 </table>
 `;
 
 export default class NoteInfoWidget extends CollapsibleWidget {
+    isEnabled() {
+        return super.isEnabled() && !this.note.hasLabel('noteInfoWidgetDisabled');
+    }
+
     get widgetTitle() { return "Note info"; }
 
     async doRenderBody() {

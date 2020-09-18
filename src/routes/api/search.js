@@ -1,13 +1,19 @@
 "use strict";
 
 const repository = require('../../services/repository');
-const noteCacheService = require('../../services/note_cache/note_cache_service');
+const SearchContext = require('../../services/search/search_context.js');
 const log = require('../../services/log');
 const scriptService = require('../../services/script');
 const searchService = require('../../services/search/services/search');
 
 function searchNotes(req) {
-    const {count, results} = searchService.searchTrimmedNotes(req.params.searchString);
+    const searchContext = new SearchContext({
+        includeNoteContent: req.query.includeNoteContent === 'true',
+        excludeArchived: req.query.excludeArchived === 'true',
+        fuzzyAttributeSearch: req.query.fuzzyAttributeSearch === 'true'
+    });
+
+    const {count, results} = searchService.searchTrimmedNotes(req.params.searchString, searchContext);
 
     try {
         return {
@@ -52,7 +58,13 @@ async function searchFromNote(req) {
 
             searchResultNoteIds = await searchFromRelation(note, relationName);
         } else {
-            searchResultNoteIds = searchService.searchNotes(json.searchString)
+            const searchContext = new SearchContext({
+                includeNoteContent: true,
+                excludeArchived: true,
+                fuzzyAttributeSearch: false
+            });
+
+            searchResultNoteIds = searchService.findNotesWithQuery(json.searchString, searchContext)
                 .map(sr => sr.noteId);
         }
     }
@@ -113,8 +125,14 @@ async function searchFromRelation(note, relationName) {
 function getRelatedNotes(req) {
     const attr = req.body;
 
-    const matchingNameAndValue = searchService.searchNotes(formatAttrForSearch(attr, true));
-    const matchingName = searchService.searchNotes(formatAttrForSearch(attr, false));
+    const searchSettings = {
+        includeNoteContent: false,
+        excludeArchived: true,
+        fuzzyAttributeSearch: false
+    };
+
+    const matchingNameAndValue = searchService.findNotesWithQuery(formatAttrForSearch(attr, true), new SearchContext(searchSettings));
+    const matchingName = searchService.findNotesWithQuery(formatAttrForSearch(attr, false), new SearchContext(searchSettings));
 
     const results = [];
 

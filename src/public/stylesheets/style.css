@@ -354,6 +354,7 @@ pre:not(.CodeMirror-line) {
     font-size: 1.3em;
     padding-left: 5px;
     padding-right: 5px;
+    padding-top: 8px;
 }
 
 .go-to-selected-note-button {
@@ -386,12 +387,19 @@ table.promoted-attributes-in-tooltip td, table.promoted-attributes-in-tooltip th
 }
 
 .tooltip-inner {
+    padding: 15px 15px 0 15px;
     background-color: var(--tooltip-background-color) !important;
     border: 1px solid var(--main-border-color);
     border-radius: 5px;
     text-align: left;
     color: var(--main-text-color) !important;
     max-width: 500px;
+    box-shadow: 10px 10px 93px -25px #aaaaaa;
+}
+
+.tooltip-attributes {
+    color: var(--muted-text-color);
+    margin-bottom: 7px;
 }
 
 .note-tooltip-content {
@@ -532,6 +540,11 @@ div[data-notify="container"] {
     padding: 2px;
 }
 
+.unhoist-button-wrapper {
+    position: relative;
+    top: -4px;
+}
+
 .unhoist-button {
     text-decoration: underline !important;
     color: var(--link-color) !important;
@@ -636,7 +649,7 @@ a.external:not(.no-arrow):after, a[href^="http://"]:not(.no-arrow):after, a[href
 }
 
 .component {
-    contain: layout size;
+    contain: size;
 }
 
 .toast {
@@ -823,9 +836,19 @@ body {
 }
 
 .ck.ck-mentions > .ck-list__item {
-    max-width: 600px;
+    max-width: 700px;
+}
+
+.ck.ck-mentions > .ck-list__item .ck-button {
+    /* wrap text for very long note path title */
+    white-space: normal !important;
 }
 
 ul.fancytree-container li {
     contain: layout paint;
+}
+
+/** ckeditor's autocomplete */
+.ck.ck-balloon-panel {
+    z-index: 10001;
 }

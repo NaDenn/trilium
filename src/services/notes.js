@@ -55,13 +55,15 @@ function deriveMime(type, mime) {
         mime = 'application/json';
     } else if (['render', 'book'].includes(type)) {
         mime = '';
+    } else {
+        mime = 'application/octet-stream';
     }
 
     return mime;
 }
 
 function copyChildAttributes(parentNote, childNote) {
-    for (const attr of parentNote.getOwnedAttributes()) {
+    for (const attr of parentNote.getAttributes()) {
         if (attr.name.startsWith("child:")) {
             new Attribute({
                 noteId: childNote.noteId,
@@ -464,6 +466,12 @@ function saveNoteRevision(note) {
     const msSinceDateCreated = now.getTime() - dateUtils.parseDateTime(note.utcDateCreated).getTime();
 
     if (!existingNoteRevisionId && msSinceDateCreated >= noteRevisionSnapshotTimeInterval * 1000) {
+        const content = note.getContent();
+
+        if (!content) {
+            return;
+        }
+
         const noteRevision = new NoteRevision({
             noteId: note.noteId,
             // title and text should be decrypted now
@@ -478,7 +486,7 @@ function saveNoteRevision(note) {
             dateCreated: dateUtils.localNowDateTime()
         }).save();
 
-        noteRevision.setContent(note.getContent());
+        noteRevision.setContent(content);
     }
 }
 

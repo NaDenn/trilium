@@ -1,8 +1,9 @@
 "use strict";
 
-class ParsingContext {
+class SearchContext {
     constructor(params = {}) {
         this.includeNoteContent = !!params.includeNoteContent;
+        this.excludeArchived = !!params.excludeArchived;
         this.fuzzyAttributeSearch = !!params.fuzzyAttributeSearch;
         this.highlightedTokens = [];
         this.originalQuery = "";
@@ -17,4 +18,4 @@ class ParsingContext {
     }
 }
 
-module.exports = ParsingContext;
+module.exports = SearchContext;

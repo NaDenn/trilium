@@ -5,7 +5,7 @@ const handleParens = require('./handle_parens.js');
 const parse = require('./parse.js');
 const NoteSet = require("../note_set.js");
 const SearchResult = require("../search_result.js");
-const ParsingContext = require("../parsing_context.js");
+const SearchContext = require("../search_context.js");
 const noteCache = require('../../note_cache/note_cache.js');
 const noteCacheService = require('../../note_cache/note_cache_service.js');
 const hoistedNoteService = require('../../hoisted_note.js');
@@ -50,14 +50,14 @@ function findNotesWithExpression(expression) {
     return searchResults;
 }
 
-function parseQueryToExpression(query, parsingContext) {
+function parseQueryToExpression(query, searchContext) {
     const {fulltextTokens, expressionTokens} = lex(query);
     const structuredExpressionTokens = handleParens(expressionTokens);
 
     const expression = parse({
         fulltextTokens,
         expressionTokens: structuredExpressionTokens,
-        parsingContext,
+        searchContext,
         originalQuery: query
     });
 
@@ -66,39 +66,27 @@ function parseQueryToExpression(query, parsingContext) {
 
 /**
  * @param {string} query
- * @param {ParsingContext} parsingContext
+ * @param {SearchContext} searchContext
  * @return {SearchResult[]}
  */
-function findNotesWithQuery(query, parsingContext) {
+function findNotesWithQuery(query, searchContext) {
+    if (!query.trim().length) {
+        return [];
+    }
+
     return utils.stopWatch(`Search with query "${query}"`, () => {
-        const expression = parseQueryToExpression(query, parsingContext);
+        const expression = parseQueryToExpression(query, searchContext);
 
         if (!expression) {
             return [];
         }
 
         return findNotesWithExpression(expression);
-    });
+    }, 20);
 }
 
-/**
- * @return {SearchResult[]}
- */
-function searchNotes(query) {
-    if (!query.trim().length) {
-        return [];
-    }
-
-    const parsingContext = new ParsingContext({
-        includeNoteContent: true,
-        fuzzyAttributeSearch: false
-    });
-
-    return findNotesWithQuery(query, parsingContext);
-}
-
-function searchTrimmedNotes(query) {
-    const allSearchResults = searchNotes(query);
+function searchTrimmedNotes(query, searchContext) {
+    const allSearchResults = findNotesWithQuery(query, searchContext);
     const trimmedSearchResults = allSearchResults.slice(0, 200);
 
     return {
@@ -108,24 +96,20 @@ function searchTrimmedNotes(query) {
 }
 
 function searchNotesForAutocomplete(query) {
-    if (!query.trim().length) {
-        return [];
-    }
-
-    const parsingContext = new ParsingContext({
+    const searchContext = new SearchContext({
         includeNoteContent: false,
+        excludeArchived: true,
         fuzzyAttributeSearch: true
     });
 
-    let searchResults = findNotesWithQuery(query, parsingContext);
+    const {results} = searchTrimmedNotes(query, searchContext);
 
-    searchResults = searchResults.slice(0, 200);
+    highlightSearchResults(results, searchContext.highlightedTokens);
 
-    highlightSearchResults(searchResults, parsingContext.highlightedTokens);
-
-    return searchResults.map(result => {
+    return results.map(result => {
         return {
             notePath: result.notePath,
+            noteTitle: noteCacheService.getNoteTitle(result.noteId),
             notePathTitle: result.notePathTitle,
             highlightedNotePathTitle: result.highlightedNotePathTitle
         }
@@ -180,7 +164,7 @@ function highlightSearchResults(searchResults, highlightedTokens) {
 
 function formatAttribute(attr) {
     if (attr.type === 'relation') {
-        return '@' + utils.escapeHtml(attr.name) + "=…";
+        return '~' + utils.escapeHtml(attr.name) + "=…";
     }
     else if (attr.type === 'label') {
         let label = '#' + utils.escapeHtml(attr.name);
@@ -195,15 +179,8 @@ function formatAttribute(attr) {
     }
 }
 
-function searchNoteEntities(query) {
-    return searchNotes(query)
-        .map(res => repository.getNote(res.noteId));
-}
-
 module.exports = {
-    searchNotes,
     searchTrimmedNotes,
     searchNotesForAutocomplete,
-    findNotesWithQuery,
-    searchNoteEntities
+    findNotesWithQuery
 };

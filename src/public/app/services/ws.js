@@ -156,7 +156,9 @@ async function consumeSyncData() {
             logError(`Encountered error ${e.message}: ${e.stack}, reloading frontend.`);
 
             // if there's an error in updating the frontend then the easy option to recover is to reload the frontend completely
-            utils.reloadApp();
+            if (!glob.isDev) {
+                utils.reloadApp();
+            }
         }
 
         for (const syncRow of nonProcessedSyncRows) {
@@ -304,11 +306,23 @@ async function processSyncRows(syncRows) {
     }
 
     for (const sync of syncRows.filter(sync => sync.entityName === 'note_reordering')) {
+        const parentNoteIdsToSort = new Set();
+
         for (const branchId in sync.positions) {
             const branch = treeCache.branches[branchId];
 
             if (branch) {
                 branch.notePosition = sync.positions[branchId];
+
+                parentNoteIdsToSort.add(branch.parentNoteId);
+            }
+        }
+
+        for (const parentNoteId of parentNoteIdsToSort) {
+            const parentNote = treeCache.notes[parentNoteId];
+
+            if (parentNote) {
+                parentNote.sortChildren();
             }
         }
 

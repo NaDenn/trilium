@@ -6,6 +6,33 @@ class Note {
     constructor(noteCache, row) {
         /** @param {NoteCache} */
         this.noteCache = noteCache;
+
+        this.update(row);
+
+        /** @param {Branch[]} */
+        this.parentBranches = [];
+        /** @param {Note[]} */
+        this.parents = [];
+        /** @param {Note[]} */
+        this.children = [];
+        /** @param {Attribute[]} */
+        this.ownedAttributes = [];
+
+        /** @param {Attribute[]|null} */
+        this.attributeCache = null;
+        /** @param {Attribute[]|null} */
+        this.inheritableAttributeCache = null;
+
+        /** @param {Attribute[]} */
+        this.targetRelations = [];
+
+        this.noteCache.notes[this.noteId] = this;
+
+        /** @param {Note[]|null} */
+        this.ancestorCache = null;
+    }
+
+    update(row) {
         /** @param {string} */
         this.noteId = row.noteId;
         /** @param {string} */
@@ -26,34 +53,11 @@ class Note {
         this.isProtected = !!row.isProtected;
         /** @param {boolean} */
         this.isDecrypted = !row.isProtected || !!row.isContentAvailable;
-        /** @param {Branch[]} */
-        this.parentBranches = [];
-        /** @param {Note[]} */
-        this.parents = [];
-        /** @param {Note[]} */
-        this.children = [];
-        /** @param {Attribute[]} */
-        this.ownedAttributes = [];
 
-        /** @param {Attribute[]|null} */
-        this.attributeCache = null;
-        /** @param {Attribute[]|null} */
-        this.inheritableAttributeCache = null;
-
-        /** @param {Attribute[]} */
-        this.targetRelations = [];
+        this.decrypt();
 
         /** @param {string|null} */
         this.flatTextCache = null;
-
-        this.noteCache.notes[this.noteId] = this;
-
-        if (protectedSessionService.isProtectedSessionAvailable()) {
-            this.decrypt();
-        }
-
-        /** @param {Note[]|null} */
-        this.ancestorCache = null;
     }
 
     /** @return {Attribute[]} */
@@ -134,12 +138,6 @@ class Note {
         return this.hasAttribute('label', 'archived');
     }
 
-    get isHideInAutocompleteOrArchived() {
-        return this.attributes.find(attr =>
-            attr.type === 'label'
-            && ["archived", "hideInAutocomplete"].includes(attr.name));
-    }
-
     get hasInheritableOwnedArchivedLabel() {
         return !!this.ownedAttributes.find(attr => attr.type === 'label' && attr.name === 'archived' && attr.isInheritable);
     }
@@ -151,20 +149,19 @@ class Note {
     }
 
     /**
-     * @return {string} - returns flattened textual representation of note, prefixes and attributes usable for searching
+     * This is used for:
+     * - fast searching
+     * - note similarity evaluation
+     *
+     * @return {string} - returns flattened textual representation of note, prefixes and attributes
      */
     get flatText() {
         if (!this.flatTextCache) {
-            if (this.isHideInAutocompleteOrArchived) {
-                this.flatTextCache = " "; // can't be empty
-                return this.flatTextCache;
-            }
-
-            this.flatTextCache = this.noteId + ' ' + this.type + ' ' + this.mime;
+            this.flatTextCache = this.noteId + ' ' + this.type + ' ' + this.mime + ' ';
 
             for (const branch of this.parentBranches) {
                 if (branch.prefix) {
-                    this.flatTextCache += branch.prefix + ' - ';
+                    this.flatTextCache += branch.prefix + ' ';
                 }
             }
 
@@ -172,11 +169,13 @@ class Note {
 
             for (const attr of this.attributes) {
                 // it's best to use space as separator since spaces are filtered from the search string by the tokenization into words
-                this.flatTextCache += ' ' + (attr.type === 'label' ? '#' : '@') + attr.name;
+                this.flatTextCache += (attr.type === 'label' ? '#' : '~') + attr.name;
 
                 if (attr.value) {
                     this.flatTextCache += '=' + attr.value;
                 }
+
+                this.flatTextCache += ' ';
             }
 
             this.flatTextCache = this.flatTextCache.toLowerCase();
@@ -332,6 +331,18 @@ class Note {
 
             this.isDecrypted = true;
         }
+    }
+
+    // for logging etc
+    get pojo() {
+        const pojo = {...this};
+
+        delete pojo.noteCache;
+        delete pojo.ancestorCache;
+        delete pojo.attributeCache;
+        delete pojo.flatTextCache;
+
+        return pojo;
     }
 }
 

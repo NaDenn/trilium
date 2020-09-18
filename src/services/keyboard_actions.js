@@ -224,12 +224,6 @@ const DEFAULT_KEYBOARD_ACTIONS = [
     {
         separator: "Dialogs"
     },
-    { // FIXME
-        actionName: "showAttributes",
-        defaultShortcuts: ["Alt+A"],
-        description: "Shows Attributes",
-        scope: "window"
-    },
     {
         actionName: "showNoteInfo",
         defaultShortcuts: [],
@@ -315,6 +309,29 @@ const DEFAULT_KEYBOARD_ACTIONS = [
     },
 
     {
+        separator: "Attributes (labels & relations)"
+    },
+
+    {
+        actionName: "focusOnAttributes",
+        defaultShortcuts: ["Alt+A"],
+        description: "Put focus into attribute editor",
+        scope: "window"
+    },
+    {
+        actionName: "addNewLabel",
+        defaultShortcuts: ["Alt+L"],
+        description: "Create new label",
+        scope: "window"
+    },
+    {
+        actionName: "addNewRelation",
+        defaultShortcuts: ["Alt+R"],
+        description: "Create new relation",
+        scope: "window"
+    },
+
+    {
         separator: "Other"
     },
 
@@ -347,7 +364,7 @@ const DEFAULT_KEYBOARD_ACTIONS = [
     },
     {
         actionName: "findInText",
-        defaultShortcuts: ["CommandOrControl+F"],
+        defaultShortcuts: isElectron ? ["CommandOrControl+F"] : [],
         scope: "window"
     },
     {

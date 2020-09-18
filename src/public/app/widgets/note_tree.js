@@ -32,7 +32,7 @@ const TPL = `
     .tree {
         height: 100%;
         overflow: auto;
-        padding-bottom: 20px;
+        padding-bottom: 35px;
     }
     
     .refresh-search-button {
@@ -51,7 +51,7 @@ const TPL = `
     .tree-settings-button {
         position: absolute;
         top: 10px;
-        right: 20px;
+        right: 10px;
         z-index: 100;
     }
     
@@ -104,11 +104,7 @@ const TPL = `
         border-radius: 5px;
     }
     
-    span.fancytree-active:not(.fancytree-focused) .fancytree-title {
-        border-style: dashed !important;
-    }
-    
-    span.fancytree-focused .fancytree-title, span.fancytree-focused.fancytree-selected .fancytree-title {
+    span.fancytree-active .fancytree-title, span.fancytree-active.fancytree-selected .fancytree-title {
         color: var(--active-item-text-color) !important;
         background-color: var(--active-item-background-color) !important;
         border-color: var(--main-background-color) !important; /* invisible border */
@@ -464,9 +460,11 @@ export default class NoteTreeWidget extends TabAwareWidget {
                     && node.data.noteId === hoistedNoteService.getHoistedNoteId()
                     && $span.find('.unhoist-button').length === 0) {
 
-                    const unhoistButton = $('<span>&nbsp; (<a class="unhoist-button">unhoist</a>)</span>');
+                    const unhoistButton = $('<span class="unhoist-button-wrapper" title="Unhoist current note to show the whole note tree">[<a class="unhoist-button">unhoist</a>]</span>');
 
-                    $span.append(unhoistButton);
+                    // prepending since appending could push out (when note title is too long)
+                    // the button too much to the right so that it's not visible
+                    $span.prepend(unhoistButton);
                 }
 
                 const note = await treeCache.getNote(node.data.noteId);
@@ -905,6 +903,7 @@ export default class NoteTreeWidget extends TabAwareWidget {
 
     async refresh() {
         this.toggleInt(this.isEnabled());
+        this.$treeSettingsPopup.hide();
 
         this.activityDetected();
 
@@ -1067,6 +1066,9 @@ export default class NoteTreeWidget extends TabAwareWidget {
                         parentNode.addChildren([this.prepareNode(branch, true)]);
 
                         this.sortChildren(parentNode);
+
+                        // this might be a first child which would force an icon change
+                        noteIdsToUpdate.add(branch.parentNoteId);
                     }
                 }
             }
