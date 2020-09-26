@@ -9,7 +9,6 @@ const SearchContext = require("../search_context.js");
 const noteCache = require('../../note_cache/note_cache.js');
 const noteCacheService = require('../../note_cache/note_cache_service.js');
 const hoistedNoteService = require('../../hoisted_note.js');
-const repository = require('../../repository.js');
 const utils = require('../../utils.js');
 
 /**
@@ -73,6 +72,8 @@ function findNotesWithQuery(query, searchContext) {
     if (!query.trim().length) {
         return [];
     }
+
+    searchContext.originalQuery = query;
 
     return utils.stopWatch(`Search with query "${query}"`, () => {
         const expression = parseQueryToExpression(query, searchContext);

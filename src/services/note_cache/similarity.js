@@ -1,6 +1,16 @@
 const noteCache = require('./note_cache');
 const noteCacheService = require('./note_cache_service.js');
 const dateUtils = require('../date_utils');
+const repository = require('../repository');
+const { JSDOM } = require("jsdom");
+
+const DEBUG = false;
+
+const IGNORED_ATTRS = [
+    "datenote",
+    "monthnote",
+    "yearnote"
+];
 
 const IGNORED_ATTR_NAMES = [
     "includenotelink",
@@ -23,7 +33,7 @@ const IGNORED_ATTR_NAMES = [
     "pageurl",
 ];
 
-function filterLabelValue(value) {
+function filterUrlValue(value) {
     return value
         .replace(/https?:\/\//ig, "")
         .replace(/www\./ig, "")
@@ -86,13 +96,48 @@ function buildRewardMap(note) {
         }
 
         // inherited notes get small penalization
-        const reward = note.noteId === attr.noteId ? 0.8 : 0.5;
+        let reward = note.noteId === attr.noteId ? 0.8 : 0.5;
+
+        if (IGNORED_ATTRS.includes(attr.name)) {
+            continue;
+        }
 
         if (!IGNORED_ATTR_NAMES.includes(attr.name)) {
             addToRewardMap(attr.name, reward);
         }
 
-        addToRewardMap(filterLabelValue(attr.value), reward);
+        let value = attr.value;
+
+        if (value.startsWith('http')) {
+            value = filterUrlValue(value);
+
+            // words in URLs are not that valuable
+            reward = reward / 2;
+        }
+
+        addToRewardMap(value, reward);
+    }
+
+    if (note.type === 'text' && note.isDecrypted) {
+        const noteEntity = repository.getNote(note.noteId);
+        const content = noteEntity.getContent();
+        const dom = new JSDOM(content);
+
+        function addHeadingsToRewardMap(elName, rewardFactor) {
+            for (const el of dom.window.document.querySelectorAll(elName)) {
+                addToRewardMap(el.textContent, rewardFactor);
+            }
+        }
+
+        // title is the top with weight 1 so smaller headings will have lower weight
+
+        // technically H1 is not supported but for the case it's present let's weigh it just as H2
+        addHeadingsToRewardMap("h1", 0.9);
+        addHeadingsToRewardMap("h2", 0.9);
+        addHeadingsToRewardMap("h3", 0.8);
+        addHeadingsToRewardMap("h4", 0.7);
+        addHeadingsToRewardMap("h5", 0.6);
+        addHeadingsToRewardMap("h6", 0.5);
     }
 
     return map;
@@ -127,13 +172,13 @@ function trimMime(mime) {
 }
 
 function buildDateLimits(baseNote) {
-    const dateCreatedTs = dateUtils.parseDateTime(baseNote.utcDateCreated);
+    const dateCreatedTs = dateUtils.parseDateTime(baseNote.utcDateCreated).getTime();
 
     return {
-        minDate: dateUtils.utcDateStr(new Date(dateCreatedTs - 3600)),
-        minExcludedDate: dateUtils.utcDateStr(new Date(dateCreatedTs - 5)),
-        maxExcludedDate: dateUtils.utcDateStr(new Date(dateCreatedTs + 5)),
-        maxDate: dateUtils.utcDateStr(new Date(dateCreatedTs + 3600)),
+        minDate: dateUtils.utcDateStr(new Date(dateCreatedTs - 3600 * 1000)),
+        minExcludedDate: dateUtils.utcDateStr(new Date(dateCreatedTs - 5 * 1000)),
+        maxExcludedDate: dateUtils.utcDateStr(new Date(dateCreatedTs + 5 * 1000)),
+        maxDate: dateUtils.utcDateStr(new Date(dateCreatedTs + 3600 * 1000)),
     };
 }
 
@@ -149,7 +194,7 @@ function splitToWords(text) {
     let words = wordCache[text];
 
     if (!words) {
-        wordCache[text] = words = text.toLowerCase().split(/\W+/);
+        wordCache[text] = words = text.toLowerCase().split(/[^\p{L}\p{N}]+/u);
 
         for (const idx in words) {
             if (WORD_BLACKLIST.includes(words[idx])) {
@@ -168,6 +213,16 @@ function splitToWords(text) {
     return words;
 }
 
+/**
+ * includeNoteLink and imageLink relation mean that notes are clearly related, but so clearly
+ * that it doesn't actually need to be shown to the user.
+ */
+function hasConnectingRelation(sourceNote, targetNote) {
+    return sourceNote.attributes.find(attr => attr.type === 'relation'
+                                           && ['includenotelink', 'imagelink'].includes(attr.name)
+                                           && attr.value === targetNote.noteId);
+}
+
 async function findSimilarNotes(noteId) {
     const results = [];
     let i = 0;
@@ -180,8 +235,11 @@ async function findSimilarNotes(noteId) {
 
     const dateLimits = buildDateLimits(baseNote);
     const rewardMap = buildRewardMap(baseNote);
-    const ancestorRewardCache = {};
+    let ancestorRewardCache = {};
     const ancestorNoteIds = new Set(baseNote.ancestors.map(note => note.noteId));
+    ancestorNoteIds.add(baseNote.noteId);
+
+    let displayRewards = false;
 
     function gatherRewards(text, factor = 1) {
         if (!text) {
@@ -195,18 +253,35 @@ async function findSimilarNotes(noteId) {
         const lengthPenalization = 1 / Math.pow(text.length, 0.3);
 
         for (const word of splitToWords(text)) {
-            counter += rewardMap[word] * factor * lengthPenalization || 0;
+            const reward = (rewardMap[word] * factor * lengthPenalization) || 0;
+
+            if (displayRewards && reward > 0) {
+                console.log(`Reward ${Math.round(reward * 10) / 10} for word: ${word}`);
+                console.log(`Before: ${counter}, add ${reward}, res: ${counter + reward}`);
+                console.log(`${rewardMap[word]} * ${factor} * ${lengthPenalization}`);
+            }
+
+            counter += reward;
         }
 
         return counter;
     }
 
     function gatherAncestorRewards(note) {
+        if (ancestorNoteIds.has(note.noteId)) {
+            return 0;
+        }
+
         if (!(note.noteId in ancestorRewardCache)) {
             let score = 0;
 
             for (const parentNote of note.parents) {
                 if (!ancestorNoteIds.has(parentNote.noteId)) {
+
+                    if (displayRewards) {
+                        console.log("Considering", parentNote.title);
+                    }
+
                     if (parentNote.isDecrypted) {
                         score += gatherRewards(parentNote.title, 0.3);
                     }
@@ -243,14 +318,32 @@ async function findSimilarNotes(noteId) {
                 continue;
             }
 
+            if (IGNORED_ATTRS.includes(attr.name)) {
+                continue;
+            }
+
             if (!IGNORED_ATTR_NAMES.includes(attr.name)) {
                 score += gatherRewards(attr.name);
             }
 
-            score += gatherRewards(attr.value);
+            let value = attr.value;
+            let factor = 1;
+
+            if (value.startsWith('http')) {
+                value = filterUrlValue(value);
+
+                // words in URLs are not that valuable
+                factor = 0.5;
+            }
+
+            score += gatherRewards(attr.value, factor);
         }
 
         if (candidateNote.type === baseNote.type) {
+            if (displayRewards) {
+                console.log("Adding reward for same note type");
+            }
+
             score += 0.2;
         }
 
@@ -263,11 +356,20 @@ async function findSimilarNotes(noteId) {
          */
         const {utcDateCreated} = candidateNote;
 
-        if (utcDateCreated < dateLimits.minExcludedDate && utcDateCreated > dateLimits.maxExcludedDate) {
+        if (utcDateCreated < dateLimits.minExcludedDate || utcDateCreated > dateLimits.maxExcludedDate) {
             if (utcDateCreated >= dateLimits.minDate && utcDateCreated <= dateLimits.maxDate) {
+                if (displayRewards) {
+                    console.log("Adding reward for very similar date of creation");
+                }
+
                 score += 1;
             }
-            else if (utcDateCreated.substr(0, 10) === dateLimits.minDate.substr(0, 10) || utcDateCreated.substr(0, 10) === dateLimits.maxDate.substr(0, 10)) {
+            else if (utcDateCreated.substr(0, 10) === dateLimits.minDate.substr(0, 10)
+                   || utcDateCreated.substr(0, 10) === dateLimits.maxDate.substr(0, 10)) {
+                if (displayRewards) {
+                    console.log("Adding reward for same day of creation");
+                }
+
                 // smaller bonus when outside of the window but within same date
                 score += 0.5;
             }
@@ -277,7 +379,9 @@ async function findSimilarNotes(noteId) {
     }
 
     for (const candidateNote of Object.values(noteCache.notes)) {
-        if (candidateNote.noteId === baseNote.noteId) {
+        if (candidateNote.noteId === baseNote.noteId
+            || hasConnectingRelation(candidateNote, baseNote)
+            || hasConnectingRelation(baseNote, candidateNote)) {
             continue;
         }
 
@@ -307,15 +411,23 @@ async function findSimilarNotes(noteId) {
 
     results.sort((a, b) => a.score > b.score ? -1 : 1);
 
-    results.forEach(r => {
-        const note = noteCache.notes[r.noteId];
+    if (DEBUG) {
+        console.log("REWARD MAP", rewardMap);
 
-        if (!note.isDecrypted) {
-            console.log(note.pojo);
+        if (results.length >= 1) {
+            for (const {noteId} of results) {
+                const note = noteCache.notes[noteId];
+
+                console.log("NOTE", note.pojo);
+
+                displayRewards = true;
+                ancestorRewardCache = {}; // reset cache
+                const totalReward = computeScore(note);
+
+                console.log("Total reward:", Math.round(totalReward * 10) / 10);
+            }
         }
-    });
-
-    console.log(rewardMap);
+    }
 
     return results.length > 200 ? results.slice(0, 200) : results;
 }

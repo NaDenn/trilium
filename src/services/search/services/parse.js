@@ -186,7 +186,11 @@ function getExpression(tokens, searchContext, level = 0) {
 
             i += 2;
 
-            return getFulltext([tokens[i]], searchContext);
+            return new OrExp([
+                new PropertyComparisonExp('title', buildComparator('*=*', tokens[i].token)),
+                new NoteContentProtectedFulltextExp('*=*', [tokens[i].token]),
+                new NoteContentUnprotectedFulltextExp('*=*', [tokens[i].token])
+            ]);
         }
 
         if (PropertyComparisonExp.isProperty(tokens[i].token)) {
@@ -263,7 +267,13 @@ function getExpression(tokens, searchContext, level = 0) {
             i += 1;
 
             return new RelationWhereExp(relationName, parseNoteProperty());
-        } else {
+        }
+        else if (i < tokens.length - 2 && isOperator(tokens[i + 1].token)) {
+            searchContext.addError(`Relation can be compared only with property, e.g. ~relation.title=hello in ${context(i)}`);
+
+            return null;
+        }
+        else {
             return new AttributeExistsExp('relation', relationName, searchContext.fuzzyAttributeSearch);
         }
     }

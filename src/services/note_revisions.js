@@ -30,6 +30,12 @@ function createNoteRevision(note) {
         return;
     }
 
+    const content = note.getContent();
+
+    if (!content) {
+        return;
+    }
+
     const contentMetadata = note.getContentMetadata();
 
     const noteRevision = new NoteRevision({
@@ -50,7 +56,7 @@ function createNoteRevision(note) {
         dateCreated: dateUtils.localNowDateTime()
     }).save();
 
-    noteRevision.setContent(note.getContent());
+    noteRevision.setContent(content);
 
     return noteRevision;
 }

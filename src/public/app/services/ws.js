@@ -150,14 +150,20 @@ async function consumeSyncData() {
         const nonProcessedSyncRows = allSyncRows.filter(sync => !processedEntityChangeIds.has(sync.id));
 
         try {
-            await utils.timeLimit(processSyncRows(nonProcessedSyncRows), 5000);
+            await utils.timeLimit(processSyncRows(nonProcessedSyncRows), 30000);
         }
         catch (e) {
             logError(`Encountered error ${e.message}: ${e.stack}, reloading frontend.`);
 
-            // if there's an error in updating the frontend then the easy option to recover is to reload the frontend completely
-            if (!glob.isDev) {
+            if (!glob.isDev && !options.is('debugModeEnabled')) {
+                // if there's an error in updating the frontend then the easy option to recover is to reload the frontend completely
+
                 utils.reloadApp();
+            }
+            else {
+                console.log("nonProcessedSyncRows causing the timeout", nonProcessedSyncRows);
+
+                alert(`Encountered error "${e.message}", check out the console.`);
             }
         }
 

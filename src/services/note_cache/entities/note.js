@@ -327,7 +327,7 @@ class Note {
 
     decrypt() {
         if (this.isProtected && !this.isDecrypted && protectedSessionService.isProtectedSessionAvailable()) {
-            this.title = protectedSessionService.decryptString(note.title);
+            this.title = protectedSessionService.decryptString(this.title);
 
             this.isDecrypted = true;
         }
@@ -341,6 +341,9 @@ class Note {
         delete pojo.ancestorCache;
         delete pojo.attributeCache;
         delete pojo.flatTextCache;
+        delete pojo.children;
+        delete pojo.parents;
+        delete pojo.parentBranches;
 
         return pojo;
     }

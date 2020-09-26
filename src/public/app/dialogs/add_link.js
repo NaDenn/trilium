@@ -42,7 +42,7 @@ export async function showDialog(widget) {
 
     noteAutocompleteService.initNoteAutocomplete($autoComplete);
 
-    $autoComplete.on('autocomplete:selected', function(event, suggestion, dataset) {
+    $autoComplete.on('autocomplete:noteselected', function(event, suggestion, dataset) {
         if (!suggestion.notePath) {
             return false;
         }

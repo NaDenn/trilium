@@ -3,7 +3,6 @@ import treeCache from "./tree_cache.js";
 import hoistedNoteService from './hoisted_note.js';
 import clipboard from './clipboard.js';
 import protectedSessionHolder from "./protected_session_holder.js";
-import appContext from "./app_context.js";
 import noteCreateService from "./note_create.js";
 import contextMenu from "./context_menu.js";
 
@@ -96,8 +95,8 @@ class TreeContextMenu {
                 enabled: !clipboard.isClipboardEmpty() && notSearch && noSelectedNotes },
             { title: 'Paste after', command: "pasteNotesAfterFromClipboard", uiIcon: "paste",
                 enabled: !clipboard.isClipboardEmpty() && isNotRoot && !isHoisted && parentNotSearch && noSelectedNotes },
-            { title: "Duplicate note here", command: "duplicateNote", uiIcon: "empty",
-                enabled: noSelectedNotes && parentNotSearch && isNotRoot && !isHoisted && (!note.isProtected || protectedSessionHolder.isProtectedSessionAvailable()) },
+            { title: "Duplicate note(s) here", command: "duplicateNote", uiIcon: "empty",
+                enabled: parentNotSearch && isNotRoot && !isHoisted },
             { title: "----" },
             { title: "Export", command: "exportNote", uiIcon: "empty",
                 enabled: notSearch && noSelectedNotes },
