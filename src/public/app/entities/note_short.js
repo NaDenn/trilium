@@ -5,6 +5,16 @@ import noteAttributeCache from "../services/note_attribute_cache.js";
 const LABEL = 'label';
 const RELATION = 'relation';
 
+const NOTE_TYPE_ICONS = {
+    "file": "bx bx-file",
+    "image": "bx bx-image",
+    "code": "bx bx-code",
+    "render": "bx bx-extension",
+    "search": "bx bx-file-find",
+    "relation-map": "bx bx-map-alt",
+    "book": "bx bx-book"
+};
+
 /**
  * FIXME: since there's no "full note" anymore we can rename this to Note
  *
@@ -205,7 +215,16 @@ class NoteShort {
                 }
             }
 
-            noteAttributeCache.attributes[this.noteId] = attrArrs.flat();
+            noteAttributeCache.attributes[this.noteId] = [];
+            const addedAttributeIds = new Set();
+
+            for (const attr of attrArrs.flat()) {
+                if (!addedAttributeIds.has(attr.attributeId)) {
+                    addedAttributeIds.add(attr.attributeId);
+
+                    noteAttributeCache.attributes[this.noteId].push(attr);
+                }
+            }
         }
 
         return noteAttributeCache.attributes[this.noteId];
@@ -243,6 +262,31 @@ class NoteShort {
      */
     getLabels(name) {
         return this.getAttributes(LABEL, name);
+    }
+
+    getIcon(isFolder = false) {
+        const iconCassLabels = this.getLabels('iconClass');
+
+        if (iconCassLabels.length > 0) {
+            return iconCassLabels.map(l => l.value).join(' ');
+        }
+        else if (this.noteId === 'root') {
+            return "bx bx-chevrons-right";
+        }
+        else if (this.type === 'text') {
+            if (isFolder) {
+                return "bx bx-folder";
+            }
+            else {
+                return "bx bx-note";
+            }
+        }
+        else if (this.type === 'code' && this.mime.startsWith('text/x-sql')) {
+            return "bx bx-data";
+        }
+        else {
+            return NOTE_TYPE_ICONS[this.type];
+        }
     }
 
     /**
@@ -298,7 +342,7 @@ class NoteShort {
     getAttribute(type, name) {
         const attributes = this.getAttributes(type, name);
 
-        return attributes.length > 0 ? attributes[0] : 0;
+        return attributes.length > 0 ? attributes[0] : null;
     }
 
     /**
