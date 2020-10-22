@@ -50,15 +50,14 @@ export default class SearchBoxWidget extends BasicWidget {
         this.$searchBox = this.$widget;
         this.$closeSearchButton = this.$widget.find(".close-search-button");
         this.$searchInput = this.$widget.find("input[name='search-text']");
-        this.$resetSearchButton = this.$widget.find(".reset-search-button");
         this.$doSearchButton = this.$widget.find(".do-search-button");
         this.$saveSearchButton = this.$widget.find(".save-search-button");
 
         this.$searchInput.on('keyup',e => {
             const searchText = this.$searchInput.val();
 
-            if (e && e.which === $.ui.keyCode.ESCAPE || $.trim(searchText) === "") {
-                this.$resetSearchButton.trigger('click');
+            if (e && e.which === $.ui.keyCode.ESCAPE) {
+                this.hideSearch();
                 return;
             }
 
@@ -68,7 +67,6 @@ export default class SearchBoxWidget extends BasicWidget {
         });
 
         this.$doSearchButton.on('click', () => this.doSearch()); // keep long form because of argument
-        this.$resetSearchButton.on('click', () => this.resetSearchEvent());
 
         this.$saveSearchButton.on('click', () => this.saveSearch());
 
