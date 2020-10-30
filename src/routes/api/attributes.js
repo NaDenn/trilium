@@ -52,7 +52,7 @@ function updateNoteAttribute(req) {
         attribute.type = body.type;
     }
 
-    if (body.value.trim()) {
+    if (attribute.type === 'label' || body.value.trim()) {
         attribute.value = body.value;
     }
     else {
@@ -65,6 +65,22 @@ function updateNoteAttribute(req) {
     return {
         attributeId: attribute.attributeId
     };
+}
+
+function setNoteAttribute(req) {
+    const noteId = req.params.noteId;
+    const body = req.body;
+
+    let attr = repository.getEntity(`SELECT * FROM attributes WHERE isDeleted = 0 AND noteId = ? AND type = ? AND name = ?`, [noteId, body.type, body.name]);
+
+    if (attr) {
+        attr.value = body.value;
+    } else {
+        attr = new Attribute(body);
+        attr.noteId = noteId;
+    }
+
+    attr.save();
 }
 
 function deleteNoteAttribute(req) {
@@ -198,6 +214,7 @@ function deleteRelation(req) {
 module.exports = {
     updateNoteAttributes,
     updateNoteAttribute,
+    setNoteAttribute,
     deleteNoteAttribute,
     getAttributeNames,
     getValuesForAttribute,

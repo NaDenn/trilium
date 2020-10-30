@@ -20,6 +20,9 @@ class TreeCache {
     async loadInitialTree() {
         const resp = await server.get('tree');
 
+        // FIXME: we need to do this to cover for ascendants of template notes which are not loaded
+        await this.loadParents(resp, false);
+
         // clear the cache only directly before adding new content which is important for e.g. switching to protected session
 
         /** @type {Object.<string, NoteShort>} */
@@ -39,6 +42,8 @@ class TreeCache {
 
     async loadSubTree(subTreeNoteId) {
         const resp = await server.get('tree?subTreeNoteId=' + subTreeNoteId);
+
+        await this.loadParents(resp, true);
 
         this.addResp(resp);
 
@@ -191,12 +196,17 @@ class TreeCache {
             if (note.type === 'search') {
                 const searchResultNoteIds = await server.get('search-note/' + note.noteId);
 
-                if (!searchResultNoteIds) {
-                    throw new Error(`Search note ${note.noteId} failed.`);
+                if (!Array.isArray(searchResultNoteIds)) {
+                    throw new Error(`Search note ${note.noteId} failed: ${searchResultNoteIds}`);
                 }
 
                 // force to load all the notes at once instead of one by one
                 await this.getNotes(searchResultNoteIds);
+
+                // reset all the virtual branches from old search results
+                if (note.noteId in treeCache.notes) {
+                    treeCache.notes[note.noteId].children = [];
+                }
 
                 const branches = resp.branches.filter(b => b.noteId === note.noteId || b.parentNoteId === note.noteId);
 

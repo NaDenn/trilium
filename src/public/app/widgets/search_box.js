@@ -162,9 +162,9 @@ export default class SearchBoxWidget extends BasicWidget {
         }
     }
 
-    searchNotesEvent() {
-        this.toggleSearchEvent();
-    }
+    // searchNotesEvent() {
+    //     this.toggleSearchEvent();
+    // }
 
     resetSearchEvent() {
         this.$searchInput.val("");

@@ -1,4 +1,4 @@
-import noteListRenderer from "../../services/note_list_renderer.js";
+import NoteListRenderer from "../../services/note_list_renderer.js";
 import TypeWidget from "./type_widget.js";
 
 const TPL = `
@@ -60,10 +60,9 @@ export default class BookTypeWidget extends TypeWidget {
                 .append(' if you want to add some text.'));
         }
 
-        // const zoomLevel = parseInt(note.getLabelValue('bookZoomLevel')) || this.getDefaultZoomLevel();
-        // this.setZoom(zoomLevel);
+        const noteListRenderer = new NoteListRenderer(note, await note.getChildNotes());
 
-        this.$content.append(await noteListRenderer.renderList(await note.getChildNotes()));
+        this.$content.append(await noteListRenderer.renderList());
     }
 
     /** @return {boolean} true if this is "auto book" activated (empty text note) and not explicit book note */

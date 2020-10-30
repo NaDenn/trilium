@@ -3,8 +3,13 @@ import utils from "./utils.js";
 import renderService from "./render.js";
 import protectedSessionService from "./protected_session.js";
 import protectedSessionHolder from "./protected_session_holder.js";
+import libraryLoader from "./library_loader.js";
 
-async function getRenderedContent(note) {
+async function getRenderedContent(note, options = {}) {
+    options = Object.assign({
+        trim: false
+    }, options);
+
     const type = getRenderingType(note);
 
     let $rendered;
@@ -12,12 +17,18 @@ async function getRenderedContent(note) {
     if (type === 'text') {
         const fullNote = await server.get('notes/' + note.noteId);
 
-        $rendered = $('<div class="ck-content">').html(fullNote.content);
+        $rendered = $('<div class="ck-content">').html(trim(fullNote.content, options.trim));
+
+        if ($rendered.find('span.math-tex').length > 0) {
+            await libraryLoader.requireLibrary(libraryLoader.KATEX);
+
+            renderMathInElement($rendered[0], {});
+        }
     }
     else if (type === 'code') {
         const fullNote = await server.get('notes/' + note.noteId);
 
-        $rendered = $("<pre>").text(fullNote.content);
+        $rendered = $("<pre>").text(trim(fullNote.content, options.trim));
     }
     else if (type === 'image') {
         $rendered = $("<img>")
@@ -87,6 +98,15 @@ async function getRenderedContent(note) {
         renderedContent: $rendered,
         type
     };
+}
+
+function trim(text, doTrim) {
+    if (!doTrim) {
+        return text;
+    }
+    else {
+        return text.substr(0, Math.min(text.length, 1000));
+    }
 }
 
 function getRenderingType(note) {
